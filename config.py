@@ -3,10 +3,20 @@ config.py - Application settings and configuration.
 
 This module contains all configurable settings for the VTT-voice2text app.
 Settings are stored in a dataclass for easy access and modification.
+
+To change the model, edit MODEL_SIZE below or use command line:
+    python main.py --model small.en
+
+Available models (English-only, faster):
+    tiny.en, base.en, small.en, medium.en
+
+Available models (Multilingual, better for names):
+    tiny, base, small, medium, large-v2, large-v3
 """
 
 from dataclasses import dataclass, field
 from typing import Literal
+import sys
 import torch
 
 
@@ -31,6 +41,22 @@ def get_compute_type(device: str) -> str:
     return "int8"
 
 
+def parse_model_from_args() -> str:
+    """
+    Parse --model argument from command line.
+    Returns the model name or default 'small' for better accuracy.
+    
+    Usage: python main.py --model medium
+    """
+    default_model = "small"  # Multilingual, good balance of speed/accuracy.
+    
+    for i, arg in enumerate(sys.argv):
+        if arg == "--model" and i + 1 < len(sys.argv):
+            return sys.argv[i + 1]
+    
+    return default_model
+
+
 @dataclass
 class AppConfig:
     """
@@ -39,7 +65,7 @@ class AppConfig:
     Attributes:
         hotkey_toggle: Key to start/stop listening (default: F8).
         hotkey_panic: Emergency stop key (default: F9).
-        model_size: Whisper model size (default: base.en for English).
+        model_size: Whisper model size (default: small for multilingual).
         silence_threshold_sec: Seconds of silence before cutting audio chunk.
         sample_rate: Audio sample rate in Hz (16000 required by Whisper).
         device: Compute device ('cuda' or 'cpu').
@@ -55,8 +81,9 @@ class AppConfig:
     hotkey_toggle: str = "f8"
     hotkey_panic: str = "f9"
     
-    # Whisper model settings
-    model_size: str = "base.en"
+    # Whisper model settings (parsed from command line or default).
+    # Use multilingual 'small' by default for better name recognition.
+    model_size: str = field(default_factory=parse_model_from_args)
     
     # Audio settings
     silence_threshold_sec: float = 1.0

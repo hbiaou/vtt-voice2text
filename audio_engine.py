@@ -232,12 +232,14 @@ class AudioEngine:
             # Create and start audio stream.
             # - channels=1: Mono audio.
             # - samplerate=16000: Required by Whisper.
-            # - blocksize=1024: Process in small chunks for responsiveness.
+            # - blocksize=2048: Larger blocks reduce overflow on slower CPUs.
+            # - latency='high': Prioritize stability over latency.
             self._stream = sd.InputStream(
                 channels=1,
                 samplerate=self._sample_rate,
                 dtype=np.float32,
-                blocksize=1024,
+                blocksize=2048,
+                latency='high',
                 callback=self._audio_callback
             )
             self._stream.start()

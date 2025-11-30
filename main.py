@@ -8,6 +8,10 @@ This is the main application file that creates:
 4. Coordination between audio capture, transcription, and text injection.
 """
 
+# Suppress deprecation warning from ctranslate2 (pkg_resources).
+import warnings
+warnings.filterwarnings("ignore", message=".*pkg_resources.*")
+
 import sys
 import signal
 import threading
@@ -219,14 +223,22 @@ class OverlayWidget(QWidget):
         
         # Start/stop pulse animation based on state.
         if state == AppState.LISTENING:
-            if self._pulse_animation:
+            if self._pulse_animation and self._pulse_animation.state() != QPropertyAnimation.State.Running:
                 self._pulse_animation.start()
         else:
-            if self._pulse_animation:
+            if self._pulse_animation and self._pulse_animation.state() == QPropertyAnimation.State.Running:
                 self._pulse_animation.stop()
             self._pulse_value = 1.0
         
         self.update()  # Trigger repaint.
+    
+    def cleanup(self):
+        """
+        Clean up resources before closing.
+        """
+        if self._pulse_animation:
+            self._pulse_animation.stop()
+            self._pulse_animation = None
     
     def paintEvent(self, event):
         """
@@ -597,6 +609,10 @@ class VTTApplication:
         Clean shutdown of the application.
         """
         print(f"[{APP_NAME}] Shutting down...")
+        
+        # Stop overlay animation first to avoid property errors.
+        if hasattr(self, 'overlay'):
+            self.overlay.cleanup()
         
         # Stop audio.
         audio_engine.cleanup()

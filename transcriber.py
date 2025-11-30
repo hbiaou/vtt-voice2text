@@ -96,13 +96,17 @@ class Transcriber:
             # Run transcription.
             # - beam_size=5: Balance between speed and accuracy.
             # - vad_filter=True: Filter out non-speech segments.
-            # - language="en": Force English for base.en model.
-            segments, info = self.model.transcribe(
-                audio,
-                beam_size=5,
-                vad_filter=True,
-                language="en"
-            )
+            # - language: Only set for .en models, otherwise auto-detect.
+            transcribe_kwargs = {
+                "beam_size": 5,
+                "vad_filter": True,
+            }
+            
+            # Only force English for English-only models (.en suffix).
+            if self._model_size.endswith(".en"):
+                transcribe_kwargs["language"] = "en"
+            
+            segments, info = self.model.transcribe(audio, **transcribe_kwargs)
             
             # Collect all segment texts.
             text_parts: List[str] = []
