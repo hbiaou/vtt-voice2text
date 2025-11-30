@@ -1,9 +1,11 @@
 """
-injector.py - Text injection via simulated keyboard input.
+injector.py - Text injection via keyboard simulation or clipboard.
 
-This module types transcribed text into the currently active window
-using pynput to simulate keyboard events. Works with any application
-(Notepad, Chrome, VS Code, etc.).
+This module outputs transcribed text either by:
+1. Typing into the active window using pynput (default)
+2. Copying to clipboard for manual pasting
+
+Works with any application (Notepad, Chrome, VS Code, etc.).
 """
 
 import time
@@ -12,6 +14,29 @@ from typing import Optional
 from pynput.keyboard import Controller, Key
 
 from config import config, APP_NAME
+
+
+def copy_to_clipboard(text: str) -> bool:
+    """
+    Copy text to system clipboard using Qt.
+    
+    Args:
+        text: Text to copy to clipboard.
+    
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        from PySide6.QtWidgets import QApplication
+        from PySide6.QtGui import QClipboard
+        
+        clipboard = QApplication.clipboard()
+        clipboard.setText(text)
+        print(f"[{APP_NAME}] Copied to clipboard: \"{text.strip()}\"")
+        return True
+    except Exception as e:
+        print(f"[{APP_NAME}] Clipboard error: {e}")
+        return False
 
 
 class TextInjector:
@@ -43,6 +68,45 @@ class TextInjector:
         # Thread safety.
         self._lock = threading.Lock()
     
+    def output(self, text: str, add_trailing_space: bool = True) -> bool:
+        """
+        Output text using the configured mode (type or clipboard).
+        
+        Args:
+            text: The text to output.
+            add_trailing_space: If True, add a space after the text.
+        
+        Returns:
+            True if output completed, False otherwise.
+        """
+        if config.output_mode == "clipboard":
+            return self.copy_to_clipboard(text, add_trailing_space)
+        else:
+            return self.inject(text, add_trailing_space)
+    
+    def copy_to_clipboard(self, text: str, add_trailing_space: bool = True) -> bool:
+        """
+        Copy text to clipboard.
+        
+        Args:
+            text: The text to copy.
+            add_trailing_space: If True, add a space after the text.
+        
+        Returns:
+            True if successful, False otherwise.
+        """
+        if not text:
+            return True
+        
+        text = text.strip()
+        if not text:
+            return True
+        
+        if add_trailing_space:
+            text = text + " "
+        
+        return copy_to_clipboard(text)
+    
     def inject(self, text: str, add_trailing_space: bool = True) -> bool:
         """
         Type text into the currently active window.
@@ -59,6 +123,9 @@ class TextInjector:
         """
         if not text:
             return True
+        
+        # Refresh delay from config (in case it changed).
+        self._delay_sec = config.typing_delay_ms / 1000.0
         
         # Check if already typing (prevent concurrent injections).
         with self._lock:

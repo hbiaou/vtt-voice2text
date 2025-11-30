@@ -38,10 +38,11 @@ import numpy as np
 # =============================================================================
 _app_instance = None
 
-from config import config, APP_NAME, APP_VERSION
+from config import config, custom_vocab, APP_NAME, APP_VERSION
 from audio_engine import audio_engine
 from transcriber import transcriber
 from injector import injector
+from settings_dialog import SettingsDialog
 
 
 # =============================================================================
@@ -601,6 +602,13 @@ class VTTApplication:
         
         tray_menu.addSeparator()
         
+        # Settings action.
+        settings_action = QAction("Settings...")
+        settings_action.triggered.connect(self._open_settings)
+        tray_menu.addAction(settings_action)
+        
+        tray_menu.addSeparator()
+        
         # Quit action.
         quit_action = QAction("Quit")
         quit_action.triggered.connect(self._quit)
@@ -724,9 +732,13 @@ class VTTApplication:
         Args:
             text: Transcribed text.
         """
-        # Inject text into active window.
         if text:
-            injector.inject(text, add_trailing_space=True)
+            # Apply custom vocabulary corrections if enabled.
+            if config.use_custom_vocab:
+                text = custom_vocab.apply(text)
+            
+            # Output text (type or clipboard based on config).
+            injector.output(text, add_trailing_space=True)
         
         # Return to listening state (continuous dictation).
         if audio_engine.is_listening:
@@ -828,6 +840,40 @@ class VTTApplication:
             self.overlay.set_status_text("Error!")
             self._update_status("Status: Model Error!")
             print(f"[{APP_NAME}] ERROR: Failed to load models!")
+    
+    def _open_settings(self):
+        """
+        Open the settings dialog.
+        """
+        # Stop listening while settings are open.
+        was_listening = self._state == AppState.LISTENING
+        if was_listening:
+            audio_engine.stop()
+            self._set_state(AppState.STANDBY)
+        
+        # Show settings dialog.
+        dialog = SettingsDialog()
+        dialog.settings_changed.connect(self._on_settings_changed)
+        dialog.exec()
+        
+        # Update toggle action text (hotkey may have changed).
+        self.toggle_action.setText(f"Toggle ({config.hotkey_toggle.upper()})")
+    
+    def _on_settings_changed(self, model_changed: bool):
+        """
+        Handle settings changes.
+        
+        Args:
+            model_changed: True if the model was changed (requires restart).
+        """
+        # Reload custom vocabulary.
+        custom_vocab.load()
+        
+        # Update audio engine settings.
+        audio_engine._silence_threshold = config.silence_threshold_sec
+        audio_engine._vad_threshold = config.vad_threshold
+        
+        print(f"[{APP_NAME}] Settings updated.")
     
     def _quit(self):
         """

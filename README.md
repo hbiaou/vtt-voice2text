@@ -10,7 +10,7 @@ A production-ready, local desktop voice dictation application for Windows. Press
 - [x] **Smart Voice Detection** - Uses silero-vad to detect speech automatically
 - [x] **Local Processing** - All transcription on your machine using faster-whisper
 - [x] **Universal Text Injection** - Types into any active window (Notepad, Chrome, VS Code, etc.)
-- [x] **Visual Feedback** - Floating overlay with animated states (red/green/yellow)
+- [x] **Visual Feedback** - Floating overlay with animated states and status text
 - [x] **System Tray Integration** - Runs in background with tray icon and menu
 - [x] **GPU Acceleration** - Supports NVIDIA CUDA for faster transcription
 - [x] **Multilingual Support** - 99 languages with multilingual models
@@ -18,13 +18,13 @@ A production-ready, local desktop voice dictation application for Windows. Press
 - [x] **Easy Setup** - One-click install and run batch scripts
 - [x] **Draggable Overlay** - Reposition the status indicator anywhere
 - [x] **Graceful Shutdown** - Ctrl+C and proper cleanup on exit
+- [x] **Settings GUI** - In-app settings panel to change hotkeys, model, output mode
+- [x] **Custom Vocabulary** - Add custom words/names for better recognition
+- [x] **Clipboard Mode** - Option to copy to clipboard instead of typing
 
 ### Planned Features
 
-- [ ] **Settings GUI** - In-app settings panel to change hotkeys, model, etc.
-- [ ] **Custom Vocabulary** - Add custom words/names for better recognition
 - [ ] **Audio Device Selection** - Choose specific microphone from GUI
-- [ ] **Clipboard Mode** - Option to copy to clipboard instead of typing
 - [ ] **Punctuation Commands** - Voice commands for "period", "comma", "new line"
 - [ ] **History Log** - View and copy previous transcriptions
 - [ ] **Auto-start on Boot** - Option to launch with Windows
@@ -145,9 +145,58 @@ default_model = "medium"  # Change this line
 | Maximum accuracy (slow) | `large-v3` |
 | Low-power device / fastest | `tiny.en` or `tiny` |
 
+## Settings GUI
+
+Right-click the system tray icon and select **Settings** to open the settings panel.
+
+### General Tab
+- **Hotkeys**: Change the toggle (F8) and panic (F9) keys
+- **Output Mode**: Choose between typing text or copying to clipboard
+
+### Model Tab
+- Select from 10 Whisper models (tiny to large-v3)
+- View current device (CPU/GPU) and compute type
+
+### Vocabulary Tab
+- Enable/disable custom vocabulary corrections
+- Add word mappings for commonly misrecognized words
+- Example: Map "Noref" → "Honoré"
+
+### Advanced Tab
+- **Silence Threshold**: Adjust pause duration before transcription
+- **VAD Sensitivity**: Tune voice detection sensitivity
+- **Keystroke Delay**: Adjust typing speed (if characters are dropped)
+
+## Custom Vocabulary
+
+The app can automatically correct misrecognized words. This is useful for:
+- Names (Honoré, François, etc.)
+- Technical terms
+- Brand names
+
+**To add corrections:**
+1. Open Settings → Vocabulary tab
+2. Click "Add" to create a new row
+3. Enter the misheard word and the correct spelling
+4. Click "Save"
+
+Vocabulary is saved to `~/.vtt-voice2text-vocab.json`.
+
+## Clipboard Mode
+
+Instead of typing text directly, you can copy it to the clipboard:
+
+1. Open Settings → General tab
+2. Select "Copy to clipboard"
+3. Click "Save"
+
+Now transcribed text will be copied to clipboard. Paste with **Ctrl+V**.
+
 ## Other Configuration
 
-Edit `config.py` to customize settings:
+Settings are saved to `~/.vtt-voice2text-settings.json` and persist between sessions.
+
+You can also edit `config.py` for advanced settings:
 
 ```python
 @dataclass
@@ -156,6 +205,8 @@ class AppConfig:
     hotkey_panic: str = "f9"            # Emergency stop key
     silence_threshold_sec: float = 1.0  # Silence before cutting
     vad_threshold: float = 0.5          # Voice detection sensitivity (0.0-1.0)
+    output_mode: str = "type"           # "type" or "clipboard"
+    use_custom_vocab: bool = True       # Apply vocabulary corrections
 ```
 
 ## Troubleshooting
