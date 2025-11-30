@@ -29,9 +29,12 @@ pip install -r requirements.txt
 # Run the app (each time)
 venv\Scripts\activate
 python main.py
+
+# Or with a specific model
+python main.py --model medium
 ```
 
-### 3. Start Dictating
+### Start Dictating
 
 1. Press **F8** to start listening (green indicator)
 2. Speak into your microphone
@@ -77,28 +80,63 @@ Verify CUDA is working:
 python -c "import torch; print('CUDA:', torch.cuda.is_available())"
 ```
 
-## Configuration
+## Changing the Whisper Model
+
+The default model is `small` (multilingual). You can change it for better accuracy or speed.
+
+### Option 1: Command Line (Recommended)
+
+```bash
+python main.py --model medium
+```
+
+### Option 2: Edit config.py
+
+Change the default in the `parse_model_from_args()` function:
+
+```python
+default_model = "medium"  # Change this line
+```
+
+### Available Whisper Models
+
+| Model | Size | Speed | Languages | Best Use Case |
+|-------|------|-------|-----------|---------------|
+| `tiny.en` | 39MB | ~1s | English | Quick drafts, low-power devices |
+| `tiny` | 39MB | ~1s | 99 languages | Fast multilingual, low accuracy |
+| `base.en` | 74MB | ~2s | English | Everyday English dictation |
+| `base` | 74MB | ~2s | 99 languages | Basic multilingual support |
+| `small.en` | 244MB | ~4s | English | Accurate English transcription |
+| **`small`** | 244MB | ~4s | 99 languages | **Default** - Good for names, accents |
+| `medium.en` | 769MB | ~8s | English | Professional English transcription |
+| `medium` | 769MB | ~8s | 99 languages | Best balance of speed/accuracy |
+| `large-v2` | 1.5GB | ~15s | 99 languages | High accuracy, older version |
+| `large-v3` | 1.5GB | ~15s | 99 languages | Highest accuracy available |
+
+> **Speed**: Approximate time to transcribe 10 seconds of audio on CPU. GPU is 3-5x faster.
+
+**Which model should I use?**
+
+| Scenario | Recommended Model |
+|----------|-------------------|
+| Fast dictation, English only | `base.en` or `small.en` |
+| Names, accents, mixed languages | `small` or `medium` |
+| Non-English languages | `small` or `medium` |
+| Maximum accuracy (slow) | `large-v3` |
+| Low-power device / fastest | `tiny.en` or `tiny` |
+
+## Other Configuration
 
 Edit `config.py` to customize settings:
 
 ```python
 @dataclass
 class AppConfig:
-    hotkey_toggle: str = "f8"        # Recording toggle key
-    hotkey_panic: str = "f9"         # Emergency stop key
-    model_size: str = "base.en"      # Whisper model size
+    hotkey_toggle: str = "f8"           # Recording toggle key
+    hotkey_panic: str = "f9"            # Emergency stop key
     silence_threshold_sec: float = 1.0  # Silence before cutting
-    vad_threshold: float = 0.5       # Voice detection sensitivity
+    vad_threshold: float = 0.5          # Voice detection sensitivity (0.0-1.0)
 ```
-
-### Available Whisper Models
-
-| Model | Size | Speed | Accuracy |
-|-------|------|-------|----------|
-| `tiny.en` | 39MB | Fastest | Basic |
-| `base.en` | 74MB | Fast | Good (default) |
-| `small.en` | 244MB | Medium | Better |
-| `medium.en` | 769MB | Slow | Best |
 
 ## Troubleshooting
 
@@ -116,8 +154,13 @@ class AppConfig:
 ### Slow Transcription
 
 - Enable GPU acceleration (see above)
-- Use a smaller model (`tiny.en`)
+- Use a smaller model: `python main.py --model tiny`
 - Reduce `silence_threshold_sec` in config
+
+### Names or Accents Not Recognized Correctly
+
+- Use a multilingual model: `python main.py --model medium`
+- Multilingual models handle names like "Honoré", "François" better than `.en` models
 
 ### Text Not Typing
 
