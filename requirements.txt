@@ -1,0 +1,80 @@
+# =============================================================================
+# VTT-voice2text Dependencies
+# =============================================================================
+# 
+# Install with: pip install -r requirements.txt
+#
+# For GPU acceleration (NVIDIA CUDA), see CUDA Installation section below.
+# =============================================================================
+
+# -----------------------------------------------------------------------------
+# GUI Framework
+# -----------------------------------------------------------------------------
+# PySide6 - Qt6 bindings for Python (cross-platform GUI).
+PySide6>=6.6.0
+
+# -----------------------------------------------------------------------------
+# Speech Recognition
+# -----------------------------------------------------------------------------
+# faster-whisper - CTranslate2-based Whisper implementation (faster than OpenAI's).
+# Automatically downloads models on first use.
+faster-whisper>=1.0.0
+
+# -----------------------------------------------------------------------------
+# Audio Processing
+# -----------------------------------------------------------------------------
+# sounddevice - PortAudio bindings for audio I/O.
+sounddevice>=0.4.6
+
+# numpy - Numerical arrays for audio processing.
+numpy>=1.24.0
+
+# -----------------------------------------------------------------------------
+# Voice Activity Detection
+# -----------------------------------------------------------------------------
+# PyTorch - Required for silero-vad model.
+# NOTE: See CUDA section below for GPU-enabled PyTorch installation.
+torch>=2.0.0
+
+# -----------------------------------------------------------------------------
+# Input Simulation
+# -----------------------------------------------------------------------------
+# pynput - Cross-platform keyboard/mouse control.
+pynput>=1.7.6
+
+# keyboard - Global hotkey detection (Windows-optimized).
+keyboard>=0.13.5
+
+# =============================================================================
+# CUDA INSTALLATION (Optional - for GPU acceleration)
+# =============================================================================
+#
+# If you have an NVIDIA GPU and want faster transcription:
+#
+# 1. First, uninstall CPU-only PyTorch:
+#    pip uninstall torch
+#
+# 2. Install CUDA-enabled PyTorch (check https://pytorch.org for latest):
+#
+#    For CUDA 11.8:
+#    pip install torch --index-url https://download.pytorch.org/whl/cu118
+#
+#    For CUDA 12.1:
+#    pip install torch --index-url https://download.pytorch.org/whl/cu121
+#
+# 3. Verify CUDA is working:
+#    python -c "import torch; print(torch.cuda.is_available())"
+#
+# =============================================================================
+# ADDITIONAL SYSTEM REQUIREMENTS
+# =============================================================================
+#
+# Windows:
+# - No additional requirements. All dependencies install via pip.
+#
+# If you encounter audio issues:
+# - Ensure your microphone is set as default recording device.
+# - Check Windows privacy settings allow microphone access.
+#
+# =============================================================================
+
