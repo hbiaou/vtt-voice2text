@@ -4,12 +4,32 @@ A production-ready, local desktop voice dictation application for Windows. Press
 
 ## Features
 
-- **Global Hotkey Control**: Toggle recording with F8 from any application
-- **Smart Voice Detection**: Uses silero-vad to detect speech automatically
-- **Local Processing**: All transcription happens on your machine using faster-whisper
-- **Universal Injection**: Types text into any active window (Notepad, Chrome, VS Code, etc.)
-- **Visual Feedback**: Floating overlay shows recording status without stealing focus
-- **GPU Acceleration**: Supports NVIDIA CUDA for faster transcription
+### Completed Features
+
+- [x] **Global Hotkey Control** - Toggle recording with F8, panic stop with F9
+- [x] **Smart Voice Detection** - Uses silero-vad to detect speech automatically
+- [x] **Local Processing** - All transcription on your machine using faster-whisper
+- [x] **Universal Text Injection** - Types into any active window (Notepad, Chrome, VS Code, etc.)
+- [x] **Visual Feedback** - Floating overlay with animated states (red/green/yellow)
+- [x] **System Tray Integration** - Runs in background with tray icon and menu
+- [x] **GPU Acceleration** - Supports NVIDIA CUDA for faster transcription
+- [x] **Multilingual Support** - 99 languages with multilingual models
+- [x] **Command-line Model Selection** - Switch models with `--model` flag
+- [x] **Easy Setup** - One-click install and run batch scripts
+- [x] **Draggable Overlay** - Reposition the status indicator anywhere
+- [x] **Graceful Shutdown** - Ctrl+C and proper cleanup on exit
+
+### Planned Features
+
+- [ ] **Settings GUI** - In-app settings panel to change hotkeys, model, etc.
+- [ ] **Custom Vocabulary** - Add custom words/names for better recognition
+- [ ] **Audio Device Selection** - Choose specific microphone from GUI
+- [ ] **Clipboard Mode** - Option to copy to clipboard instead of typing
+- [ ] **Punctuation Commands** - Voice commands for "period", "comma", "new line"
+- [ ] **History Log** - View and copy previous transcriptions
+- [ ] **Auto-start on Boot** - Option to launch with Windows
+- [ ] **Noise Suppression** - Built-in background noise filtering
+- [ ] **Multiple Language Profiles** - Quick switch between language settings
 
 ## Quick Start
 
