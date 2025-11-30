@@ -36,6 +36,9 @@ numpy>=1.24.0
 # NOTE: See CUDA section below for GPU-enabled PyTorch installation.
 torch>=2.0.0
 
+# torchaudio - Required by silero-vad for audio processing.
+torchaudio>=2.0.0
+
 # -----------------------------------------------------------------------------
 # Input Simulation
 # -----------------------------------------------------------------------------
