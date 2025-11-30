@@ -587,34 +587,34 @@ class VTTApplication:
         
         self.tray_icon.setIcon(QIcon(icon_pixmap))
         
-        # Create context menu.
-        tray_menu = QMenu()
+        # Create context menu (store as attribute to prevent garbage collection).
+        self.tray_menu = QMenu()
         
         # Toggle action.
-        self.toggle_action = QAction(f"Toggle ({config.hotkey_toggle.upper()})")
+        self.toggle_action = QAction(f"Toggle ({config.hotkey_toggle.upper()})", self.tray_menu)
         self.toggle_action.triggered.connect(self._toggle_listening)
-        tray_menu.addAction(self.toggle_action)
+        self.tray_menu.addAction(self.toggle_action)
         
         # Status display.
-        self.status_action = QAction("Status: Loading...")
+        self.status_action = QAction("Status: Loading...", self.tray_menu)
         self.status_action.setEnabled(False)
-        tray_menu.addAction(self.status_action)
+        self.tray_menu.addAction(self.status_action)
         
-        tray_menu.addSeparator()
+        self.tray_menu.addSeparator()
         
         # Settings action.
-        settings_action = QAction("Settings...")
-        settings_action.triggered.connect(self._open_settings)
-        tray_menu.addAction(settings_action)
+        self.settings_action = QAction("Settings...", self.tray_menu)
+        self.settings_action.triggered.connect(self._open_settings)
+        self.tray_menu.addAction(self.settings_action)
         
-        tray_menu.addSeparator()
+        self.tray_menu.addSeparator()
         
         # Quit action.
-        quit_action = QAction("Quit")
-        quit_action.triggered.connect(self._quit)
-        tray_menu.addAction(quit_action)
+        self.quit_action = QAction("Quit", self.tray_menu)
+        self.quit_action.triggered.connect(self._quit)
+        self.tray_menu.addAction(self.quit_action)
         
-        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.setContextMenu(self.tray_menu)
         self.tray_icon.setToolTip(f"{APP_NAME} v{APP_VERSION}")
         self.tray_icon.show()
         
