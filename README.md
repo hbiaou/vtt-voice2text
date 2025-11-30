@@ -13,20 +13,21 @@ A production-ready, local desktop voice dictation application for Windows. Press
 
 ## Quick Start
 
-### 1. Install Dependencies
+### Option A: Easy Setup (Recommended)
+
+1. Double-click **`install.bat`** (one-time setup)
+2. Double-click **`run.bat`** to start the app
+
+### Option B: Manual Setup
 
 ```bash
-# Create a virtual environment (recommended)
+# One-time setup
 python -m venv venv
 venv\Scripts\activate
-
-# Install dependencies
 pip install -r requirements.txt
-```
 
-### 2. Run the Application
-
-```bash
+# Run the app (each time)
+venv\Scripts\activate
 python main.py
 ```
 
