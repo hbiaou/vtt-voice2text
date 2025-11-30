@@ -9,6 +9,7 @@ This is the main application file that creates:
 """
 
 import sys
+import signal
 import threading
 from enum import Enum
 from typing import Optional
@@ -26,6 +27,12 @@ from PySide6.QtGui import (
 
 import keyboard
 import numpy as np
+
+
+# =============================================================================
+# Global reference for signal handler
+# =============================================================================
+_app_instance = None
 
 from config import config, APP_NAME, APP_VERSION
 from audio_engine import audio_engine
@@ -339,12 +346,32 @@ class VTTApplication:
         """
         Create the system tray icon and menu.
         """
-        # Create tray icon.
-        self.tray_icon = QSystemTrayIcon()
+        # Check if system tray is available.
+        if not QSystemTrayIcon.isSystemTrayAvailable():
+            print(f"[{APP_NAME}] WARNING: System tray not available!")
         
-        # Create icon (simple colored square).
+        # Create tray icon.
+        self.tray_icon = QSystemTrayIcon(self.app)
+        
+        # Create a visible microphone-style icon.
         icon_pixmap = QPixmap(32, 32)
-        icon_pixmap.fill(QColor(100, 100, 100))
+        icon_pixmap.fill(Qt.transparent)
+        
+        painter = QPainter(icon_pixmap)
+        painter.setRenderHint(QPainter.Antialiasing)
+        
+        # Draw a red/orange circle (stands out in system tray).
+        painter.setBrush(QBrush(QColor(220, 80, 60)))
+        painter.setPen(QPen(QColor(180, 60, 40), 2))
+        painter.drawEllipse(2, 2, 28, 28)
+        
+        # Draw "V" for VTT in white.
+        painter.setPen(QPen(QColor(255, 255, 255), 3))
+        painter.drawLine(8, 10, 16, 22)
+        painter.drawLine(16, 22, 24, 10)
+        
+        painter.end()
+        
         self.tray_icon.setIcon(QIcon(icon_pixmap))
         
         # Create context menu.
@@ -609,6 +636,21 @@ class VTTApplication:
 
 
 # =============================================================================
+# Signal Handler for Ctrl+C
+# =============================================================================
+
+def signal_handler(signum, frame):
+    """
+    Handle Ctrl+C (SIGINT) for clean shutdown.
+    """
+    print(f"\n[{APP_NAME}] Ctrl+C received. Shutting down...")
+    global _app_instance
+    if _app_instance:
+        _app_instance._quit()
+    sys.exit(0)
+
+
+# =============================================================================
 # Entry Point
 # =============================================================================
 
@@ -616,9 +658,21 @@ def main():
     """
     Application entry point.
     """
+    global _app_instance
+    
+    # Register signal handler for Ctrl+C.
+    signal.signal(signal.SIGINT, signal_handler)
+    
     try:
-        app = VTTApplication()
-        sys.exit(app.run())
+        _app_instance = VTTApplication()
+        
+        # Timer to allow Python to process signals (Ctrl+C).
+        # Qt event loop blocks Python signal handling otherwise.
+        timer = QTimer()
+        timer.timeout.connect(lambda: None)  # Dummy callback.
+        timer.start(100)  # Check every 100ms.
+        
+        sys.exit(_app_instance.run())
     except Exception as e:
         print(f"[{APP_NAME}] Fatal error: {e}")
         sys.exit(1)
