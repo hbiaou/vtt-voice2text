@@ -52,13 +52,25 @@ class AppState(Enum):
     """
     Application states for the dictation workflow.
     
-    STANDBY: Not listening, red indicator.
-    LISTENING: Recording audio, green indicator.
-    TRANSCRIBING: Processing audio, yellow indicator.
+    LOADING: Models are loading, spinning indicator.
+    STANDBY: Not listening, ready indicator.
+    LISTENING: Recording audio, pulsing indicator.
+    TRANSCRIBING: Processing audio, processing indicator.
     """
+    LOADING = "loading"
     STANDBY = "standby"
     LISTENING = "listening"
     TRANSCRIBING = "transcribing"
+
+
+# Status messages for loading phases.
+LOADING_MESSAGES = {
+    "init": "Initializing...",
+    "vad": "Loading VAD...",
+    "whisper": "Loading Whisper...",
+    "ready": "Ready",
+    "error": "Error!"
+}
 
 
 # =============================================================================
@@ -85,6 +97,9 @@ class AppSignals(QObject):
     
     # Signal when model is loaded.
     model_loaded = Signal(bool)
+    
+    # Signal for loading progress updates.
+    loading_progress = Signal(str)  # "vad", "whisper", "ready", "error"
 
 
 # Global signals instance.
@@ -126,38 +141,56 @@ class ModelLoaderWorker(QThread):
     
     def run(self):
         """
-        Load both VAD and Whisper models.
+        Load both VAD and Whisper models with progress updates.
         """
-        # Load VAD model first (smaller, faster).
+        # Emit loading VAD status.
+        signals.loading_progress.emit("vad")
         vad_ok = audio_engine.load_vad_model()
         
-        # Load Whisper model.
+        if not vad_ok:
+            signals.loading_progress.emit("error")
+            signals.model_loaded.emit(False)
+            return
+        
+        # Emit loading Whisper status.
+        signals.loading_progress.emit("whisper")
         whisper_ok = transcriber.load_model()
         
-        # Emit result.
-        signals.model_loaded.emit(vad_ok and whisper_ok)
+        if not whisper_ok:
+            signals.loading_progress.emit("error")
+            signals.model_loaded.emit(False)
+            return
+        
+        # All loaded successfully.
+        signals.loading_progress.emit("ready")
+        signals.model_loaded.emit(True)
 
 
 # =============================================================================
-# Floating Overlay Widget
+# Floating Overlay Widget - Modern Design
 # =============================================================================
 
 class OverlayWidget(QWidget):
     """
-    Small floating overlay window showing recording state.
+    Modern floating overlay window showing recording state.
     
-    Displays a colored circle:
-    - Red: Standby (not listening).
-    - Green (pulsing): Listening for speech.
-    - Yellow: Transcribing audio.
+    Features:
+    - Glassmorphic design with blur effect simulation
+    - Animated states: spinning (loading), pulsing (listening)
+    - Status text display
+    - Smooth transitions between states
     """
+    
+    # Increased size for modern design with text.
+    OVERLAY_WIDTH = 160
+    OVERLAY_HEIGHT = 100
     
     def __init__(self):
         super().__init__()
         
         # Window properties.
         self.setWindowTitle(APP_NAME)
-        self.setFixedSize(config.overlay_size, config.overlay_size)
+        self.setFixedSize(self.OVERLAY_WIDTH, self.OVERLAY_HEIGHT)
         
         # Frameless, always on top, tool window (no taskbar entry).
         self.setWindowFlags(
@@ -170,126 +203,289 @@ class OverlayWidget(QWidget):
         self.setAttribute(Qt.WA_TranslucentBackground)
         
         # Current state.
-        self._state = AppState.STANDBY
+        self._state = AppState.LOADING
+        self._status_text = "Initializing..."
         
         # Animation properties.
-        self._pulse_value = 1.0
-        self._pulse_animation: Optional[QPropertyAnimation] = None
+        self._animation_value = 0.0
+        self._animation: Optional[QPropertyAnimation] = None
+        
+        # Spin animation timer for loading state.
+        self._spin_angle = 0
+        self._spin_timer = QTimer(self)
+        self._spin_timer.timeout.connect(self._update_spin)
         
         # Position in bottom-right corner.
         self._position_overlay()
         
-        # Setup pulse animation.
+        # Setup animations.
         self._setup_animation()
+        
+        # Start in loading state with spin animation.
+        self._spin_timer.start(30)  # ~33 FPS for smooth spin.
     
     def _position_overlay(self):
         """
         Position the overlay in the bottom-right corner of the screen.
         """
         screen = QApplication.primaryScreen().geometry()
-        x = screen.width() - config.overlay_size - config.overlay_margin
-        y = screen.height() - config.overlay_size - config.overlay_margin - 40  # Account for taskbar.
+        x = screen.width() - self.OVERLAY_WIDTH - config.overlay_margin
+        y = screen.height() - self.OVERLAY_HEIGHT - config.overlay_margin - 50
         self.move(x, y)
     
     def _setup_animation(self):
         """
         Setup the pulsing animation for the listening state.
         """
-        self._pulse_animation = QPropertyAnimation(self, b"pulse_value")
-        self._pulse_animation.setDuration(800)
-        self._pulse_animation.setStartValue(0.6)
-        self._pulse_animation.setEndValue(1.0)
-        self._pulse_animation.setEasingCurve(QEasingCurve.InOutSine)
-        self._pulse_animation.setLoopCount(-1)  # Infinite loop.
+        self._animation = QPropertyAnimation(self, b"animation_value")
+        self._animation.setDuration(1200)
+        self._animation.setStartValue(0.0)
+        self._animation.setEndValue(1.0)
+        self._animation.setEasingCurve(QEasingCurve.InOutSine)
+        self._animation.setLoopCount(-1)
     
-    def get_pulse_value(self) -> float:
-        return self._pulse_value
+    def _update_spin(self):
+        """
+        Update spin angle for loading animation.
+        """
+        if self._state == AppState.LOADING:
+            self._spin_angle = (self._spin_angle + 8) % 360
+            self.update()
+        elif self._state == AppState.TRANSCRIBING:
+            self._spin_angle = (self._spin_angle + 12) % 360
+            self.update()
     
-    def set_pulse_value(self, value: float):
-        self._pulse_value = value
-        self.update()  # Trigger repaint.
+    def get_animation_value(self) -> float:
+        return self._animation_value
+    
+    def set_animation_value(self, value: float):
+        self._animation_value = value
+        self.update()
     
     # Qt property for animation.
-    pulse_value = Property(float, get_pulse_value, set_pulse_value)
+    animation_value = Property(float, get_animation_value, set_animation_value)
+    
+    def set_status_text(self, text: str):
+        """
+        Update the status text displayed on the overlay.
+        """
+        self._status_text = text
+        self.update()
     
     def set_state(self, state: AppState):
         """
         Update the overlay state and appearance.
-        
-        Args:
-            state: New application state.
         """
         self._state = state
         
-        # Start/stop pulse animation based on state.
+        # Manage animations based on state.
         if state == AppState.LISTENING:
-            if self._pulse_animation and self._pulse_animation.state() != QPropertyAnimation.State.Running:
-                self._pulse_animation.start()
+            # Start pulse animation for listening.
+            self._spin_timer.stop()
+            if self._animation and self._animation.state() != QPropertyAnimation.State.Running:
+                self._animation.start()
+        elif state == AppState.LOADING or state == AppState.TRANSCRIBING:
+            # Start spin animation for loading/transcribing.
+            if self._animation and self._animation.state() == QPropertyAnimation.State.Running:
+                self._animation.stop()
+            self._spin_timer.start(30)
         else:
-            if self._pulse_animation and self._pulse_animation.state() == QPropertyAnimation.State.Running:
-                self._pulse_animation.stop()
-            self._pulse_value = 1.0
+            # Standby - no animation.
+            self._spin_timer.stop()
+            if self._animation and self._animation.state() == QPropertyAnimation.State.Running:
+                self._animation.stop()
+            self._animation_value = 0.0
         
-        self.update()  # Trigger repaint.
+        self.update()
     
     def cleanup(self):
         """
         Clean up resources before closing.
         """
-        if self._pulse_animation:
-            self._pulse_animation.stop()
-            self._pulse_animation = None
+        self._spin_timer.stop()
+        if self._animation:
+            self._animation.stop()
+            self._animation = None
     
     def paintEvent(self, event):
         """
-        Custom paint event to draw the colored circle.
+        Custom paint event - modern glassmorphic design.
         """
         painter = QPainter(self)
         painter.setRenderHint(QPainter.Antialiasing)
+        painter.setRenderHint(QPainter.TextAntialiasing)
         
-        # Determine color based on state.
-        if self._state == AppState.STANDBY:
-            color = QColor(220, 53, 69)  # Red.
-            alpha = 200
+        # === Background Panel (Glassmorphic) ===
+        # Dark semi-transparent background with rounded corners.
+        bg_rect = self.rect().adjusted(2, 2, -2, -2)
+        
+        # Background gradient.
+        bg_color = QColor(20, 20, 30, 230)
+        painter.setBrush(QBrush(bg_color))
+        painter.setPen(QPen(QColor(60, 60, 80, 150), 1))
+        painter.drawRoundedRect(bg_rect, 16, 16)
+        
+        # === State Indicator ===
+        indicator_size = 40
+        indicator_x = 20
+        indicator_y = (self.height() - indicator_size) // 2
+        
+        # Determine colors based on state.
+        if self._state == AppState.LOADING:
+            primary_color = QColor(100, 149, 237)  # Cornflower blue.
+            self._draw_spinner(painter, indicator_x, indicator_y, indicator_size)
+        elif self._state == AppState.STANDBY:
+            primary_color = QColor(76, 175, 80)  # Material green.
+            self._draw_ready_icon(painter, indicator_x, indicator_y, indicator_size)
         elif self._state == AppState.LISTENING:
-            color = QColor(40, 167, 69)  # Green.
-            alpha = int(200 * self._pulse_value)
-        else:  # TRANSCRIBING
-            color = QColor(255, 193, 7)  # Yellow.
-            alpha = 200
+            primary_color = QColor(76, 175, 80)  # Green.
+            self._draw_listening_icon(painter, indicator_x, indicator_y, indicator_size)
+        elif self._state == AppState.TRANSCRIBING:
+            primary_color = QColor(255, 183, 77)  # Amber.
+            self._draw_processing_icon(painter, indicator_x, indicator_y, indicator_size)
         
-        color.setAlpha(alpha)
+        # === Status Text ===
+        text_x = indicator_x + indicator_size + 12
+        text_width = self.width() - text_x - 15
         
-        # Calculate circle dimensions.
-        margin = 10
-        size = min(self.width(), self.height()) - 2 * margin
+        # Status label.
+        painter.setPen(QColor(255, 255, 255, 220))
+        font = QFont("Segoe UI", 10, QFont.Weight.DemiBold)
+        painter.setFont(font)
         
-        # Apply pulse scaling for listening state.
-        if self._state == AppState.LISTENING:
-            scale = 0.8 + 0.2 * self._pulse_value
-            size = int(size * scale)
+        # Draw status text.
+        text_rect = painter.boundingRect(
+            text_x, indicator_y, text_width, indicator_size,
+            Qt.AlignLeft | Qt.AlignVCenter, self._status_text
+        )
+        painter.drawText(
+            text_x, indicator_y, text_width, indicator_size,
+            Qt.AlignLeft | Qt.AlignVCenter, self._status_text
+        )
         
-        x = (self.width() - size) // 2
-        y = (self.height() - size) // 2
+        # Hotkey hint (smaller, dimmer).
+        if self._state == AppState.STANDBY:
+            hint_font = QFont("Segoe UI", 8)
+            painter.setFont(hint_font)
+            painter.setPen(QColor(150, 150, 150, 180))
+            painter.drawText(
+                text_x, indicator_y + 22, text_width, 20,
+                Qt.AlignLeft | Qt.AlignVCenter, f"Press {config.hotkey_toggle.upper()}"
+            )
+    
+    def _draw_spinner(self, painter: QPainter, x: int, y: int, size: int):
+        """
+        Draw a spinning loader animation.
+        """
+        center_x = x + size // 2
+        center_y = y + size // 2
+        radius = size // 2 - 4
         
-        # Draw outer glow/shadow.
-        glow_color = QColor(color)
-        glow_color.setAlpha(50)
-        painter.setBrush(QBrush(glow_color))
+        # Draw spinning arc segments.
+        pen = QPen(QColor(100, 149, 237), 3, Qt.SolidLine, Qt.RoundCap)
+        painter.setPen(pen)
+        painter.setBrush(Qt.NoBrush)
+        
+        # Main spinning arc.
+        from PySide6.QtCore import QRectF
+        arc_rect = QRectF(center_x - radius, center_y - radius, radius * 2, radius * 2)
+        
+        # Draw arc (angle in 1/16th of a degree).
+        start_angle = self._spin_angle * 16
+        span_angle = 270 * 16
+        painter.drawArc(arc_rect, start_angle, span_angle)
+        
+        # Faded trail.
+        fade_pen = QPen(QColor(100, 149, 237, 80), 3, Qt.SolidLine, Qt.RoundCap)
+        painter.setPen(fade_pen)
+        painter.drawArc(arc_rect, start_angle + span_angle, 90 * 16)
+    
+    def _draw_ready_icon(self, painter: QPainter, x: int, y: int, size: int):
+        """
+        Draw a checkmark/ready icon.
+        """
+        center_x = x + size // 2
+        center_y = y + size // 2
+        
+        # Outer glow.
+        glow = QColor(76, 175, 80, 60)
+        painter.setBrush(QBrush(glow))
         painter.setPen(Qt.NoPen)
-        painter.drawEllipse(x - 5, y - 5, size + 10, size + 10)
+        painter.drawEllipse(center_x - size//2 + 2, center_y - size//2 + 2, size - 4, size - 4)
         
-        # Draw main circle.
-        painter.setBrush(QBrush(color))
-        painter.setPen(QPen(color.darker(120), 2))
-        painter.drawEllipse(x, y, size, size)
+        # Inner circle.
+        painter.setBrush(QBrush(QColor(76, 175, 80)))
+        painter.drawEllipse(center_x - 14, center_y - 14, 28, 28)
         
-        # Draw inner highlight.
-        highlight = QColor(255, 255, 255, 60)
-        painter.setBrush(QBrush(highlight))
+        # Checkmark.
+        painter.setPen(QPen(QColor(255, 255, 255), 3, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.drawLine(center_x - 7, center_y, center_x - 2, center_y + 5)
+        painter.drawLine(center_x - 2, center_y + 5, center_x + 7, center_y - 5)
+    
+    def _draw_listening_icon(self, painter: QPainter, x: int, y: int, size: int):
+        """
+        Draw a pulsing microphone/listening icon.
+        """
+        center_x = x + size // 2
+        center_y = y + size // 2
+        
+        # Pulse effect.
+        pulse_scale = 0.85 + 0.15 * self._animation_value
+        pulse_alpha = int(255 * (1.0 - self._animation_value * 0.5))
+        
+        # Outer pulse ring.
+        ring_size = int(size * pulse_scale)
+        ring_color = QColor(76, 175, 80, int(100 * (1.0 - self._animation_value)))
+        painter.setBrush(Qt.NoBrush)
+        painter.setPen(QPen(ring_color, 2))
+        painter.drawEllipse(
+            center_x - ring_size//2, center_y - ring_size//2,
+            ring_size, ring_size
+        )
+        
+        # Inner filled circle.
+        inner_color = QColor(76, 175, 80, pulse_alpha)
+        painter.setBrush(QBrush(inner_color))
         painter.setPen(Qt.NoPen)
-        highlight_size = size // 3
-        painter.drawEllipse(x + size // 4, y + size // 6, highlight_size, highlight_size)
+        painter.drawEllipse(center_x - 14, center_y - 14, 28, 28)
+        
+        # Microphone icon (simplified).
+        painter.setPen(QPen(QColor(255, 255, 255), 2, Qt.SolidLine, Qt.RoundCap))
+        # Mic body.
+        painter.drawRoundedRect(center_x - 4, center_y - 10, 8, 14, 4, 4)
+        # Mic stand.
+        painter.drawArc(center_x - 8, center_y - 2, 16, 12, 0, -180 * 16)
+        painter.drawLine(center_x, center_y + 7, center_x, center_y + 11)
+    
+    def _draw_processing_icon(self, painter: QPainter, x: int, y: int, size: int):
+        """
+        Draw a processing/transcribing icon with spinning dots.
+        """
+        center_x = x + size // 2
+        center_y = y + size // 2
+        
+        # Background circle.
+        painter.setBrush(QBrush(QColor(255, 183, 77, 60)))
+        painter.setPen(Qt.NoPen)
+        painter.drawEllipse(center_x - 16, center_y - 16, 32, 32)
+        
+        # Spinning dots around center.
+        import math
+        num_dots = 8
+        dot_radius = 3
+        orbit_radius = 12
+        
+        for i in range(num_dots):
+            angle = math.radians(self._spin_angle + i * (360 / num_dots))
+            dot_x = center_x + orbit_radius * math.cos(angle)
+            dot_y = center_y + orbit_radius * math.sin(angle)
+            
+            # Fade dots based on position in spin.
+            alpha = int(255 * ((i + 1) / num_dots))
+            dot_color = QColor(255, 183, 77, alpha)
+            painter.setBrush(QBrush(dot_color))
+            painter.drawEllipse(int(dot_x - dot_radius), int(dot_y - dot_radius), 
+                               dot_radius * 2, dot_radius * 2)
     
     def mousePressEvent(self, event):
         """
@@ -327,8 +523,8 @@ class VTTApplication:
         self.app = QApplication(sys.argv)
         self.app.setQuitOnLastWindowClosed(False)  # Keep running in tray.
         
-        # Application state.
-        self._state = AppState.STANDBY
+        # Application state - start in LOADING.
+        self._state = AppState.LOADING
         self._models_loaded = False
         
         # Current transcription worker.
@@ -346,6 +542,10 @@ class VTTApplication:
         
         # Set audio callback.
         audio_engine.on_audio_chunk = self._on_audio_chunk
+        
+        # Set initial loading state on overlay.
+        self.overlay.set_state(AppState.LOADING)
+        self.overlay.set_status_text("Initializing...")
     
     def _create_overlay(self):
         """
@@ -421,6 +621,7 @@ class VTTApplication:
         signals.transcription_complete.connect(self._on_transcription_complete)
         signals.status_message.connect(self._update_status)
         signals.model_loaded.connect(self._on_models_loaded)
+        signals.loading_progress.connect(self._on_loading_progress)
     
     def _setup_hotkeys(self):
         """
@@ -550,16 +751,18 @@ class VTTApplication:
         Args:
             state: New state.
         """
-        # Update overlay.
+        # Update overlay state.
         self.overlay.set_state(state)
         
-        # Update status text.
+        # Update status text on overlay and tray.
         status_text = {
-            AppState.STANDBY: "Standby",
+            AppState.LOADING: "Loading...",
+            AppState.STANDBY: "Ready",
             AppState.LISTENING: "Listening...",
             AppState.TRANSCRIBING: "Transcribing..."
         }.get(state, "Unknown")
         
+        self.overlay.set_status_text(status_text)
         self._update_status(f"Status: {status_text}")
     
     def _update_status(self, message: str):
@@ -582,6 +785,24 @@ class VTTApplication:
             # Single click - toggle listening.
             self._toggle_listening()
     
+    def _on_loading_progress(self, phase: str):
+        """
+        Handle loading progress updates from model loader.
+        
+        Args:
+            phase: Current loading phase ("vad", "whisper", "ready", "error").
+        """
+        messages = {
+            "vad": "Loading VAD...",
+            "whisper": "Loading Whisper...",
+            "ready": "Ready",
+            "error": "Error!"
+        }
+        
+        status_text = messages.get(phase, "Loading...")
+        self.overlay.set_status_text(status_text)
+        self._update_status(f"Status: {status_text}")
+    
     def _on_models_loaded(self, success: bool):
         """
         Handle model loading completion.
@@ -592,6 +813,9 @@ class VTTApplication:
         self._models_loaded = success
         
         if success:
+            # Transition to STANDBY state.
+            self._set_state(AppState.STANDBY)
+            self.overlay.set_status_text("Ready")
             self._update_status("Status: Ready")
             print(f"[{APP_NAME}] All models loaded. Ready!")
             self.tray_icon.showMessage(
@@ -601,6 +825,7 @@ class VTTApplication:
                 3000
             )
         else:
+            self.overlay.set_status_text("Error!")
             self._update_status("Status: Model Error!")
             print(f"[{APP_NAME}] ERROR: Failed to load models!")
     
@@ -637,13 +862,17 @@ class VTTApplication:
         print(f"Toggle: {config.hotkey_toggle.upper()}")
         print(f"Panic: {config.hotkey_panic.upper()}")
         print(f"Device: {config.device}")
+        print(f"Model: {config.model_size}")
         print()
         
         # Connect audio chunk signal.
         signals.audio_chunk_ready.connect(self._process_audio_chunk)
         
-        # Start model loading in background.
+        # Set initial LOADING state.
+        self._set_state(AppState.LOADING)
         self._update_status("Status: Loading models...")
+        
+        # Start model loading in background.
         self.model_loader = ModelLoaderWorker()
         self.model_loader.start()
         
